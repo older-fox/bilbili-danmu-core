@@ -1,0 +1,126 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const bilibili_live_ws_1 = require("bilibili-live-ws");
+const src_1 = require("bilibili-live-ws/src");
+const net_1 = require("net");
+const typedi_1 = require("typedi");
+const ROOM_ID = 21721813;
+const PORT = 17000;
+var colors = require('colors');
+colors.enable();
+function main() {
+    const server = net_1.createServer();
+    typedi_1.Container.set('server', server);
+    const clients = new Set();
+    typedi_1.Container.set('clients', clients);
+    server.on('connection', (socket) => {
+        console.log('客户端连接');
+        clients.add(socket);
+        socket.on('close', () => {
+            console.log('客户端断开连接');
+            clients.delete(socket);
+        });
+        socket.on('error', console.error);
+    });
+    server.listen(PORT);
+    const live = new src_1.KeepLiveTCP(ROOM_ID);
+    typedi_1.Container.set(bilibili_live_ws_1.LiveTCP, live);
+    live.on('live', () => console.log('connect success'));
+    const buffer = [];
+    typedi_1.Container.set('buffer', buffer);
+    let online = 0;
+    live.on('heartbeat', (e) => online = e);
+    live.on('msg', (msg) => {
+		var DateInfo = new Date();
+		var cointype = '银瓜子';
+		var TimeString = DateInfo.toLocaleTimeString();
+        buffer.push(msg);
+		//console.log (msg.cmd);
+		switch(msg.cmd){
+			
+			case 'DANMU_MSG':
+			//收到普通弹幕
+				console.log('['+colors.red(TimeString)+']'+colors.brightGreen(msg.info[2][1])+':'+colors.brightMagenta(msg.info[1]));
+			break;
+			
+			case 'INTERACT_WORD':
+			//用户进入直播间消息
+			   console.log('['+colors.red(TimeString)+']'+colors.white(msg.data.uname)+colors.brightGreen('进入了直播间'));
+			break;
+			
+			case 'SEND_GIFT':
+			//礼物被发送后的消息
+			    if (msg.data.coin_type == 'silver'){
+					 cointype = '银瓜子';
+				}else {
+					 cointype ='金瓜子';
+				}
+				if (msg.data.total_coin == 0){
+					console.log('['+colors.red(TimeString)+']'+colors.brightGreen(msg.data.uname)+'赠送了'+colors.brightRed(msg.data.num)+'个'+colors.brightYellow(msg.data.giftName));
+				}else {
+					console.log('['+colors.red(TimeString)+']'+colors.brightGreen(msg.data.uname)+'赠送了'+colors.brightRed(msg.data.num)+'个'+colors.brightYellow(msg.data.giftName)+'价值'+colors.brightGreen(msg.data.total_coin)+cointype);
+				}
+			break;
+			
+			case 'WIDGET_BANNER':
+			//无效消息暂不处理
+			    //console.log(msg);
+			   //console.log ('特殊消息待分析');
+			break;
+			
+			case 'ROOM_BANNER':
+			//特殊消息暂不处理（房间顶部消息更新）
+			    //console.log(msg);
+			    //console.log('房间banner消息,待分析');
+			break;
+			
+			case 'ENTRY_EFFECT':
+			//进入房间特殊消息-不做处理-意义不大
+			    //console.log (msg);
+			    //console.log('['+colors.red(TimeString)+']'+colors.brightGreen(msg.data.copy_writing));
+			break;
+			
+			case 'COMBO_SEND':
+			//连击礼物赠送
+			    //console.log ('礼物连击');
+			    //console.log (msg);
+			break;
+			
+			case 'WELCOME_GUARD':
+			//老爷进入直播间
+			    console.log('['+colors.red(TimeString)+']'+'会员'+colors.brightGreen(msg.data.username)+'进入直播间,会员等级'+colors.brightRed(msg.data.guard_level));
+			break;
+			
+			case 'ROOM_REAL_TIME_MESSAGE_UPDATE':
+			//房间信息更新
+			    console.log('['+colors.red(TimeString)+']'+'信息更新:粉丝数'+colors.brightGreen(msg.data.fans)+',粉丝团成员数'+colors.brightRed(msg.data.fans_club));
+			break;
+		}
+
+    });
+    live.on('error', console.error);
+    function doSend() {
+        if (buffer.length !== 0) {
+            const body = {
+                info: {
+                    room: ROOM_ID,
+                    time: ~~(Date.now() / 1000),
+                    viewers: online,
+                },
+                data: buffer,
+            };
+            const json = JSON.stringify(body);
+            const clients = typedi_1.Container.get('clients');
+			//console.log(json);
+            for (const client of clients.values()) {
+                client.write(json);
+                client.write('\r\n');
+            }
+            buffer.length = 0;
+        }
+        setTimeout(doSend, 1000);
+    }
+    setTimeout(doSend, 1000);
+}
+main();
+//# sourceMappingURL=index.js.map
