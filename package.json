@@ -7,7 +7,6 @@
     "start": "node lib/index.js"
   },
   "dependencies": {
-    "async-lock": "^1.2.4",
     "bilibili-live-ws": "^5.1.1",
     "colors": "^1.4.0",
     "mysql": "^2.18.1",
